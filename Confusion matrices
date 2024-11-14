@@ -1,0 +1,33 @@
+// Load the Sentinel-2 image and define your region of interest
+var roi = ee.FeatureCollection("projects/ee-srijanbhs/assets/mygeodata");
+var sentinel2 = ee.ImageCollection('COPERNICUS/S2')
+                .filterBounds(roi)
+                .filterDate('2022-01-01', '2022-12-31')
+                .median()
+                .clip(roi);
+
+// Example: Use a simple NDVI threshold for classification as an example
+var ndvi = sentinel2.normalizedDifference(['B8', 'B4']).rename('NDVI');
+var classified = ndvi.gt(0.3).rename('classification');  // Threshold of 0.3 as an example
+
+// Load ground truth data (sample points or polygons with class labels)
+// This example assumes `groundTruthPoints` is an asset with a property "class" for the true class
+var groundTruthPoints = ee.FeatureCollection("projects/ee-srijanbhs/assets/groundTruthData");
+
+// Sample the classified image and ground truth points to compare
+var validation = classified.sampleRegions({
+  collection: groundTruthPoints,
+  properties: ['class'],  // Column in `groundTruthPoints` with actual class labels
+  scale: 10,
+});
+
+// Calculate the error matrix (confusion matrix)
+var confusionMatrix = validation.errorMatrix('class', 'classification');
+
+// Print the confusion matrix and overall accuracy
+print('Confusion Matrix:', confusionMatrix);
+print('Overall Accuracy:', confusionMatrix.accuracy());
+
+// Display the classified image on the map
+Map.centerObject(roi, 10);
+Map.addLayer(classified, {min: 0, max: 1, palette: ['red', 'green']}, 'Classified Image');
