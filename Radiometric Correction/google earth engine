@@ -1,0 +1,39 @@
+// Define your region of interest (ROI)
+var roi = ee.FeatureCollection("projects/ee-srijanbhs/assets/mygeodata");
+
+// Load Sentinel-2 Level-1C image collection
+var sentinel2 = ee.ImageCollection('COPERNICUS/S2')
+                  .filterBounds(roi)
+                  .filterDate('2015-01-01', '2024-12-31')
+                  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10));
+
+// Function to apply radiometric correction to each image
+function applyRadiometricCorrection(image) {
+  // Convert digital numbers (DN) to top-of-atmosphere (TOA) reflectance
+  var toaReflectance = image.divide(10000).select(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']);
+  toaReflectance = toaReflectance.copyProperties(image, image.propertyNames());
+  
+  // Mask clouds and shadows using the QA60 band (cloud mask band for Sentinel-2)
+  var cloudMask = image.select('QA60').bitwiseAnd(1 << 10).eq(0)
+                .and(image.select('QA60').bitwiseAnd(1 << 11).eq(0));
+  
+  // Apply the mask to the TOA reflectance image
+  return toaReflectance.updateMask(cloudMask).clip(roi);
+}
+
+// Map the correction function over the image collection
+var correctedCollection = sentinel2.map(applyRadiometricCorrection);
+
+// Display the corrected image for a specific date
+var imageToDisplay = correctedCollection.filterDate('2022-01-01', '2022-12-31').median();
+Map.centerObject(roi, 10);
+Map.addLayer(imageToDisplay, {bands: ['B4', 'B3', 'B2'], min: 0, max: 0.3}, 'Corrected TOA Image (RGB)');
+
+// Optional: Export corrected image to Google Drive
+Export.image.toDrive({
+  image: imageToDisplay,
+  description: 'Corrected_TOA_Sentinel2',
+  scale: 10,
+  region: roi,
+  maxPixels: 1e9
+});
