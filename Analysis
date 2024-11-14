@@ -1,0 +1,101 @@
+% File path and color codes
+file_path = 'C:\Users\Srijan\Downloads\ce671final project\ClassifiedImages';
+years = 2015:2024;
+num_years = length(years);
+class_areas = zeros(num_years, 4); % Pre-allocate area matrix for each class
+
+% Define RGB colors for each class (ignoring the Alpha channel)
+colors = {
+    [0, 0, 0], ...           % Road
+    [255, 254, 1], ...       % Open land
+    [129, 128, 129], ...     % Building
+    [1, 129, 0]              % Forest
+};
+
+tolerance = 10;  % Set a small tolerance for color matching
+
+% Loop through each year’s image
+for i = 1:num_years
+    % Read the image
+    img = imread(fullfile(file_path, sprintf('%d.tif', years(i))));
+    
+    % Count the pixels for each class with tolerance
+    for j = 1:4
+        % Create a mask for pixels within the tolerance range for each color
+        mask = abs(double(img(:,:,1)) - colors{j}(1)) <= tolerance & ...
+               abs(double(img(:,:,2)) - colors{j}(2)) <= tolerance & ...
+               abs(double(img(:,:,3)) - colors{j}(3)) <= tolerance;
+        class_areas(i, j) = sum(mask(:)); % Store pixel count for the class
+    end
+end
+
+% Optional: Convert pixel count to area (if pixel size is known)
+
+% Plotting
+% 1. Bar Chart for each year
+figure;
+bar(years, class_areas, 'stacked');
+legend('Road', 'Open Land', 'Building', 'Forest');
+xlabel('Year');
+ylabel('Area (in pixel count)');
+title('LULC Area Changes Over Years');
+
+% 2. Line plot to show trends over time
+figure;
+plot(years, class_areas);
+legend('Road', 'Open Land', 'Building', 'Forest');
+xlabel('Year');
+ylabel('Area (in pixel count)');
+title('LULC Trend Analysis Over Years');
+
+% Calculate percentage change in each LULC category
+pct_change = diff(class_areas) ./ class_areas(1:end-1, :) * 100;
+
+% Plot heatmap for percentage change
+figure;
+heatmap(years(2:end), {'Road', 'Open Land', 'Building', 'Forest'}, pct_change', ...
+        'Colormap', parula, 'ColorLimits', [-100, 100]);
+title('Year-over-Year Percentage Change in LULC Categories');
+xlabel('Year');
+ylabel('LULC Category');
+% Calculate 3-year moving average for smoother trend lines
+windowSize = 3;
+smoothed_areas = movmean(class_areas, windowSize, 1);
+
+% Plot trends with moving average
+figure;
+hold on;
+plot(years, class_areas, '--');  % Original data
+plot(years, smoothed_areas, 'LineWidth', 2);  % Smoothed data
+legend('Road (Raw)', 'Open Land (Raw)', 'Building (Raw)', 'Forest (Raw)', ...
+       'Road (Smoothed)', 'Open Land (Smoothed)', 'Building (Smoothed)', 'Forest (Smoothed)');
+xlabel('Year');
+ylabel('Area (in pixel count)');
+title('LULC Trend Analysis with 3-Year Moving Average');
+hold off;
+% Stacked area plot
+figure;
+area(years, class_areas, 'LineWidth', 1.5);
+legend('Road', 'Open Land', 'Building', 'Forest', 'Location', 'eastoutside');
+xlabel('Year');
+ylabel('Area (in pixel count)');
+title('LULC Composition Over Time');
+% Calculate net change from 2015 to 2024 for each category
+net_change = class_areas(end, :) - class_areas(1, :);
+
+% Bar chart of total area change
+figure;
+bar(categorical({'Road', 'Open Land', 'Building', 'Forest'}), net_change);
+ylabel('Net Area Change (in pixel count)');
+title('Net Change in LULC Categories from 2015 to 2024');% Calculate percentage change in forest and urban (roads + buildings) areas
+forest_pct_change = ((class_areas(end, 4) - class_areas(1, 4)) / class_areas(1, 4)) * 100;
+urban_pct_change = ((sum(class_areas(end, [1, 3])) - sum(class_areas(1, [1, 3]))) / ...
+                   sum(class_areas(1, [1, 3]))) * 100;
+
+% Display percentage change in a bar chart
+figure;
+bar(categorical({'Forest', 'Urban (Roads + Buildings)'}), [forest_pct_change, urban_pct_change]);
+ylabel('Percentage Change (%)');
+title('Environmental Impact: Forest Loss vs Urban Growth (2015-2024)');
+
+
